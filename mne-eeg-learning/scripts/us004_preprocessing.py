@@ -160,6 +160,9 @@ if __name__ == "__main__":
     print("US-004 演示：预处理 Pipeline")
     print("=" * 60)
 
+    from us000_path import set_datasets_path
+    set_datasets_path()
+
     # 加载数据
     sample_dir = mne.datasets.sample.data_path()
     raw_fname = sample_dir / "MEG" / "sample" / "sample_audvis_raw.fif"
