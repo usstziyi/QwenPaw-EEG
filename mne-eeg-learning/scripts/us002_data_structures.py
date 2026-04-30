@@ -49,9 +49,26 @@ def create_dummy_raw(
         noise = 20e-6 * rng.standard_normal(n_times)
         data[ch] = alpha + noise
 
+
+
     # 构建 Info
     ch_names = [f"EEG {i:03d}" for i in range(1, n_channels + 1)]
     info = mne.create_info(ch_names, sfreq=sfreq, ch_types="eeg")
+
+    # 重命名通道
+    mapping = {
+    'EEG 001': 'Fp1',
+    'EEG 002': 'Fp2',
+    'EEG 003': 'C3',
+    'EEG 004': 'C4',
+    'EEG 005': 'O1',
+    'EEG 006': 'O2',
+    'EEG 007': 'Fz',
+    'EEG 008': 'Cz'
+    }
+    info.rename_channels(mapping)
+    
+    # 添加标准 10-20 蒙太奇（电极位置）
     montage = mne.channels.make_standard_montage("standard_1020")
     info.set_montage(montage)
 
