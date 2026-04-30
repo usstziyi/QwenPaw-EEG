@@ -97,7 +97,11 @@ def quick_info(raw, label=""):
 # 主入口
 # ============================================================
 if __name__ == "__main__":
+    # 列出支持的格式
     list_supported_formats()
+    # 设置路径
+    from us000_path import set_datasets_path
+    set_datasets_path()
 
     # --- 演示：加载 FIF 并另存 ---
     sample_dir = mne.datasets.sample.data_path()
@@ -107,15 +111,17 @@ if __name__ == "__main__":
     print("演示：FIF 读取 → 保存 → 重载")
     print("=" * 60)
 
-    raw = read_raw_by_ext(fif_path, preload=True)
+    # 通过扩展名自动选择读取函数
+    raw: mne.io.Raw = read_raw_by_ext(fif_path, preload=True)
     quick_info(raw, "原始 FIF")
 
     # 截取前 30 秒，只保留 EEG 通道
-    eeg_raw = raw.copy().pick_types(eeg=True).crop(tmin=0, tmax=30)
-    save_as_fif(eeg_raw, "us003_demo_output.fif")
-
+    eeg_raw: mne.io.Raw = raw.copy().pick_types(eeg=True).crop(tmin=0, tmax=30)
+    save_as_fif(eeg_raw, "./mne-eeg-learning/outputs/us003_demo_output.fif")
+    
     # 重载验证
-    reloaded = read_raw_by_ext("us003_demo_output.fif", preload=True)
+    reloaded: mne.io.Raw = read_raw_by_ext("./mne-eeg-learning/outputs/us003_demo_output.fif", preload=True)
     quick_info(reloaded, "重载的 FIF（截取版）")
+    
 
     print("\n全部完成。")

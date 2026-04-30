@@ -16,6 +16,7 @@ import mne
 from collections import Counter
 
 
+
 def check_installation():
     """验证 MNE 是否安装成功，打印系统信息。"""
     print("=" * 60)
@@ -35,19 +36,6 @@ def load_sample_data():
     sample_dir : Path
         数据所在目录。
     """
-    # 目录配置
-    data_dir = os.path.abspath("./../datasets")
-    os.makedirs(data_dir, exist_ok=True)
-    # 每次运行强制更新 config
-    mne.set_config("MNE_DATA", data_dir)
-    mne.set_config("MNE_DATASETS_SAMPLE_PATH", data_dir)
-    print("=" * 80)
-    print("config file =", mne.get_config_path())
-    print("=" * 80)
-    # 打印config 内容,友好格式
-    config = mne.get_config()
-    for key, value in config.items():
-        print(f"* {key:25s}: {value}")
 
     sample_dir = mne.datasets.sample.data_path()
     raw_fname = sample_dir / "MEG" / "sample" / "sample_audvis_raw.fif"
@@ -130,6 +118,9 @@ def quick_plot(raw, n_channels=10, duration=10):
 # ============================================================
 if __name__ == "__main__":
     check_installation()
+    # 设置路径
+    from us000_path import set_datasets_path
+    set_datasets_path()
     raw, sample_dir = load_sample_data()
     inspect_raw(raw)
     inspect_info(raw)
@@ -138,4 +129,6 @@ if __name__ == "__main__":
     print("正在打开交互式波形浏览器...")
     # 取消下行注释即可在本地弹窗：
     quick_plot(raw)
+
     print("完成。如需交互式可视化，请取消 quick_plot(raw) 的注释。")
+
