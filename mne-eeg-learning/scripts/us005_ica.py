@@ -46,6 +46,7 @@ def fit_ica(
     if picks is None:
         picks = mne.pick_types(raw.info, eeg=True, eog=False, ecg=False)
 
+    # 初始化 ICA 模型
     ica = ICA(
         n_components=n_components,
         method=method,
@@ -53,6 +54,7 @@ def fit_ica(
         max_iter="auto",
         fit_params=fit_params,
     )
+    # 拟合 ICA 模型
     ica.fit(raw, picks=picks)
     print(f"ICA 拟合完成: {ica.n_components_} 个成分")
     return ica, picks
@@ -178,6 +180,10 @@ if __name__ == "__main__":
     print("=" * 60)
     print("US-005 演示：ICA 去眼电")
     print("=" * 60)
+
+    from us000_path import set_datasets_path
+    set_datasets_path()
+
 
     # 加载数据
     sample_dir = mne.datasets.sample.data_path()
