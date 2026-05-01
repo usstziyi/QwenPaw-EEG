@@ -90,8 +90,7 @@ def create_epochs(
     if flat:
         kwargs["flat"] = flat
 
-    epochs = mne.Epochs(raw, events, event_id=event_id, **kwargs)
-    total = len(epochs) / (1 - len(epochs.drop_log) / max(1, len(events)))
+    epochs = mne.Epochs(raw, events, event_id=event_id,  verbose=False, **kwargs)
     kept_pct = len(epochs) / max(1, len(events)) * 100
     print(f"Epochs 创建: {len(epochs)} 个通过 ({kept_pct:.1f}%)")
     return epochs
@@ -153,6 +152,9 @@ if __name__ == "__main__":
     print("US-006 演示：事件提取与 Epoching")
     print("=" * 60)
 
+    from us000_path import set_datasets_path
+    set_datasets_path()
+
     # 加载数据
     sample_dir = mne.datasets.sample.data_path()
     raw_fname = sample_dir / "MEG" / "sample" / "sample_audvis_raw.fif"
@@ -181,5 +183,13 @@ if __name__ == "__main__":
         reject=dict(eeg=150e-6),
     )
     print(f"\n{epochs}")
+
+    # 平衡条件间 trial 数
+    equalize_conditions(epochs, event_ids=event_id.keys())
+
+    print(event_id.keys())
+
+    # 对比条件 ERP
+    compare_conditions(epochs, event_id.keys())
 
     print("\n全部完成。")
