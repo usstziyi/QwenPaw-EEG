@@ -708,3 +708,394 @@ $$
 $$
 
 由 MRI 或 fsaverage 提供的头模型、源空间，以及 EEG 电极位置共同决定。
+
+
+---
+
+因为 **MNE sample data 里的 `fsaverage` 不一定完整**，而 `mne.datasets.fetch_fsaverage()` 的目的不是“重复下载一个名字相同的目录”，而是：
+
+> **检查当前 `subjects_dir/fsaverage` 是否包含 MNE 需要的完整 fsaverage 文件；如果缺文件，就补齐。**
+
+MNE 官方文档说明：`fetch_fsaverage()` 会比较 `subjects_dir/fsaverage` 和远程 zip 中应有的文件；如果有缺失，就下载并更新，且不会覆盖已有文件。([mne.tools][1])
+
+---
+
+## 1. sample data 里的 `fsaverage` 是“样例数据附带的”
+
+MNE sample data 主要服务于官方教程，例如：
+
+```python
+sample_data_path = mne.datasets.sample.data_path()
+subjects_dir = sample_data_path / "subjects"
+```
+
+里面通常会有：
+
+```text
+subjects/
+    sample/
+    fsaverage/
+```
+
+其中：
+
+```text
+sample/
+```
+
+是真实的 sample 被试 MRI / BEM / surface 等。
+
+```text
+fsaverage/
+```
+
+是一个 FreeSurfer 标准平均脑模板，很多教程会用它做：
+
+```python
+subject="fsaverage"
+```
+
+但这个目录在 sample data 中可能不是最新、最完整的 fsaverage 发行版。
+
+---
+
+## 2. `fetch_fsaverage()` 下载的是 MNE 专门维护的完整 fsaverage
+
+`fetch_fsaverage()` 会提供几类东西：
+
+1. FreeSurfer 6 风格的现代 `fsaverage` subject 文件；
+2. MNE 需要的 fsaverage parcellations；
+3. fsaverage 的 head surface、fiducials、head↔MRI trans、1 层和 3 层 BEM 及其 surfaces。([mne.tools][2])
+
+也就是说，它不仅仅是：
+
+```text
+surf/
+mri/
+label/
+```
+
+还包括 MNE 做前向建模、配准、模板源空间、BEM 时常用的额外文件。
+
+---
+
+## 3. 为什么你明明有 `fsaverage`，代码还要写这句？
+
+常见原因有三个。
+
+### 原因一：保证文件完整
+
+比如你做：
+
+```python
+src = mne.setup_source_space(
+    subject="fsaverage",
+    spacing="oct6",
+    subjects_dir=subjects_dir
+)
+```
+
+或者：
+
+```python
+bem = mne.make_bem_solution(...)
+```
+
+或者用 fsaverage 做模板源定位、source morph、标准脑可视化。
+
+这些操作可能需要：
+
+```text
+fsaverage/bem/
+fsaverage/surf/
+fsaverage/label/
+fsaverage/mri/
+fsaverage/bem/fsaverage-trans.fif
+fsaverage/bem/inner_skull.surf
+fsaverage/bem/outer_skull.surf
+fsaverage/bem/outer_skin.surf
+```
+
+sample data 里的 `fsaverage` 如果少了某些文件，就会报错。
+
+`fetch_fsaverage()` 就是为了自动补齐。
+
+---
+
+### 原因二：路径可能不是同一个
+
+你看到的 sample data 里有：
+
+```python
+sample_data_path / "subjects" / "fsaverage"
+```
+
+但如果你直接写：
+
+```python
+fs_dir = mne.datasets.fetch_fsaverage(verbose=True)
+```
+
+而没有指定 `subjects_dir`，MNE 可能会下载到默认位置，比如：
+
+```text
+~/mne_data/MNE-fsaverage-data/fsaverage
+```
+
+也就是说，它不一定用 sample data 里的那个 `fsaverage`。
+
+更明确的写法是：
+
+```python
+sample_data_path = mne.datasets.sample.data_path()
+subjects_dir = sample_data_path / "subjects"
+
+fs_dir = mne.datasets.fetch_fsaverage(
+    subjects_dir=subjects_dir,
+    verbose=True
+)
+```
+
+这样它会检查：
+
+```text
+sample_data_path/subjects/fsaverage
+```
+
+如果缺文件，就在这个目录里补齐。
+
+---
+
+### 原因三：官方教程希望代码可复现
+
+很多教程不假设你已经下载了完整 sample data，也不假设你本地的 `subjects_dir` 已经有完整 `fsaverage`。
+
+所以会写：
+
+```python
+fs_dir = mne.datasets.fetch_fsaverage(verbose=True)
+```
+
+这样无论你本机有没有 `fsaverage`，代码都能继续跑。
+
+---
+
+## 4. 那如果我已经有 sample data 的 fsaverage，还需要运行吗？
+
+**不一定需要。**
+
+如果你只是使用 sample data 教程中的已有 forward、inverse、source estimate 文件，比如：
+
+```text
+sample_audvis-meg-oct-6-fwd.fif
+sample_audvis-meg-oct-6-meg-inv.fif
+```
+
+通常不需要重新 fetch fsaverage。
+
+但如果你要自己做：
+
+```python
+mne.setup_source_space(subject="fsaverage")
+mne.make_bem_model(subject="fsaverage")
+mne.make_forward_solution(...)
+mne.compute_source_morph(...)
+```
+
+建议运行：
+
+```python
+fs_dir = mne.datasets.fetch_fsaverage(subjects_dir=subjects_dir)
+```
+
+它不会覆盖已有文件，只会补缺失文件。([mne.tools][1])
+
+---
+
+## 5. `fs_dir` 返回的是什么？
+
+```python
+fs_dir = mne.datasets.fetch_fsaverage(verbose=True)
+```
+
+返回的是：
+
+```text
+subjects_dir / "fsaverage"
+```
+
+也就是 `fsaverage` 这个 subject 的目录路径。MNE 文档中也说明，返回值本质上是 `subjects_dir / 'fsaverage'`。([GitHub][3])
+
+例如：
+
+```python
+print(fs_dir)
+```
+
+可能输出：
+
+```text
+/Users/你的用户名/mne_data/MNE-fsaverage-data/fsaverage
+```
+
+或者如果你指定了：
+
+```python
+subjects_dir = sample_data_path / "subjects"
+```
+
+则可能是：
+
+```text
+.../MNE-sample-data/subjects/fsaverage
+```
+
+---
+
+## 核心总结
+
+可以这样理解：
+
+```python
+mne.datasets.sample.data_path()
+```
+
+下载的是 **MNE sample 示例数据集**。
+
+```python
+mne.datasets.fetch_fsaverage()
+```
+
+下载/检查/补齐的是 **标准模板脑 fsaverage**。
+
+sample data 里面可能已经带了一个 `fsaverage`，但 `fetch_fsaverage()` 的作用是确保它满足当前 MNE 版本对模板脑、BEM、surface、label、trans 等文件的完整要求。它不是简单重复下载，而是做完整性检查和补齐。
+
+[1]: https://mne.tools/stable/generated/mne.datasets.fetch_fsaverage.html?utm_source=chatgpt.com "mne.datasets.fetch_fsaverage — MNE 1.12.1 documentation"
+[2]: https://mne.tools/1.1/generated/mne.datasets.fetch_fsaverage.html?utm_source=chatgpt.com "mne.datasets.fetch_fsaverage — MNE 1.1.1 documentation"
+[3]: https://github.com/mne-tools/mne-python/blob/main/mne/datasets/_fsaverage/base.py?utm_source=chatgpt.com "mne-python/mne/datasets/_fsaverage/base.py at main"
+
+
+---
+
+在 MEG/EEG 源定位领域，**逆问题**根据求解方法不同，有多个具体名称：
+
+---
+
+## 核心名称体系
+
+```
+逆问题 (Inverse Problem / Inverse Solution)
+│
+├── 分布式源模型 (Distributed Source Model)
+│   ├── 最小范数估计 (MNE / Minimum Norm Estimate)
+│   ├── dSPM (Dynamic Statistical Parametric Mapping)
+│   ├── sLORETA (Standardized Low-Resolution Electromagnetic Tomography)
+│   ├── eLORETA (Exact Low-Resolution Electromagnetic Tomography)
+│   ├── 混合范数估计 (Mixed Norm Estimate / MxNE)
+│   ├── TV-L1 (Total Variation + L1)
+│   └── 时空源分析 (Spatio-Temporal Source Analysis)
+│
+├── 偶极子拟合 (Dipole Fitting / ECD)
+│   ├── 等效电流偶极子 (ECD / Equivalent Current Dipole)
+│   ├── 移动偶极子 (Moving Dipole)
+│   ├── 旋转偶极子 (Rotating Dipole)
+│   └── 固定偶极子 (Fixed Dipole)
+│
+├── 扫描方法 (Scanning Methods / Spatial Filters)
+│   ├── 波束形成器 (Beamformer)
+│   │   ├── LCMV (Linearly Constrained Minimum Variance)
+│   │   └── DICS (Dynamic Imaging of Coherent Sources)
+│   └── MUSIC (Multiple Signal Classification)
+│
+└── 贝叶斯方法 (Bayesian Approaches)
+    ├── 经验贝叶斯 (Empirical Bayes)
+    ├── 变分贝叶斯 (Variational Bayes / VBMEG)
+    └── 稀疏贝叶斯学习 (Sparse Bayesian Learning / SBL)
+```
+
+---
+
+## MNE-Python 中的对应函数
+
+```python
+# 分布式逆解
+inv = mne.minimum_norm.make_inverse_operator(raw.info, fwd, noise_cov, 
+                                              method='MNE')   # 或 'dSPM', 'sLORETA', 'eLORETA'
+stc = mne.minimum_norm.apply_inverse(raw, inv, method='MNE')
+
+# 偶极子拟合
+dip = mne.fit_dipole(evoked, cov, bem)
+
+# 波束形成器
+filters = mne.beamformer.make_lcmv(raw.info, fwd, data_cov)
+stc = mne.beamformer.apply_lcmv(raw, filters)
+
+# 混合范数
+stc = mne.inverse_sparse.mixed_norm(evoked, fwd, noise_cov, alpha=0.1)
+```
+
+---
+
+## 命名逻辑
+
+所有方法都叫**逆问题**，因为它们都在求解：
+
+```
+y = Gx + ε
+已知 y, G → 求 x
+```
+
+但根据**对 x 的先验假设**不同，分为：
+
+| 方法类别 | 对 x 的假设 | 核心思想 |
+|---------|------------|---------|
+| **MNE** | x 能量最小 | `min ‖x‖²` + 数据拟合 |
+| **dSPM** | x 归一化到噪声水平 | MNE / 噪声标准差 |
+| **sLORETA** | x 归一化到定位误差 | 标准化分辨率矩阵 |
+| **偶极子拟合** | x 只有极少非零 | 搜索1-3个偶极子位置 |
+| **Beamformer** | x 源间时间独立 | 空间滤波，抑制其他源 |
+| **MxNE** | x 稀疏且局部平滑 | `min ‖x‖₁` + 结构先验 |
+
+---
+
+## 学术论文中的叫法
+
+论文标题通常这样写：
+
+```
+"Source localization using MNE"
+"Solving the MEG inverse problem with dSPM"
+"Cortical source imaging via sLORETA"
+"Dipole modeling of auditory evoked fields"
+"Beamformer analysis of oscillatory activity"
+```
+
+**日常交流中**，最常用的是：
+- "做逆解" (solve the inverse)
+- "计算 MNE/dSPM" 
+- "跑源定位" (source localization)
+- "源重建" (source reconstruction)
+- "溯源" (source imaging)
+
+---
+
+## 核心区别图示
+
+```
+逆问题的两种思路：
+
+分布式：                    偶极子：
+"到处都有源，         vs    "只有几个源，
+ 我猜强度分布"              我找位置和方向"
+
+    ⚫⚪⚪⚪                  ⚪⚪⚪⚪
+    ⚫⚫⚪⚪                  ⚪⚪⚫⚪
+    ⚪⚫⚪⚪                  ⚪⚪⚪⚪
+    ⚪⚪⚪⚪                  ⚪⚫⚪⚪
+    
+源的数量 = 数千个            源的数量 = 1-3 个
+```
+
+---
+
+所以，**逆问题的具体名字取决于你用的方法**，但所有这些统称为 **"源定位" (source localization)** 或 **"源重建" (source reconstruction)**。在 MNE 社区，最常见的四种是：**MNE, dSPM, sLORETA, eLORETA**。
