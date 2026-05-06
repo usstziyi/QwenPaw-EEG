@@ -242,12 +242,12 @@ if __name__ == "__main__":
         subjects_dir=subjects_dir,
     )
 
-    # 逆问题
+    # 逆问题，计算逆算子
     inv = compute_inverse(evoked, fwd, noise_cov)
 
     # 源重建
     stc = apply_source_recon(evoked, inv, method="sLORETA")
 
     print(f"\n源重建完成！")
-    print("取消下方注释以可视化：")
-    print("# plot_source_activity(stc, subject, subjects_dir)")
+    # 可视化源活动
+    plot_source_activity(stc, subject, subjects_dir)
