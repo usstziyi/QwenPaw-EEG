@@ -12,8 +12,11 @@ US-009: Source Localization 入门 — 可复用函数库
     plot_source_activity()  — 在标准脑上绘制源活动
 """
 
+import os
 import os.path as op
+from pathlib import Path
 import mne
+
 
 
 def prepare_fsaverage():
@@ -24,7 +27,13 @@ def prepare_fsaverage():
     subjects_dir : str
     subject : str ('fsaverage')
     """
-    fs_dir = mne.datasets.fetch_fsaverage(verbose=True)
+    subjects_dir = Path("../mne-eeg-learning/datasets/subjects").resolve() # 绝对路径
+    print(f"subjects_dir: {subjects_dir}")
+
+    fs_dir = mne.datasets.fetch_fsaverage(
+        subjects_dir=subjects_dir,
+        verbose=True
+    )
     subjects_dir = op.dirname(fs_dir)
     return subjects_dir, "fsaverage"
 
@@ -63,7 +72,7 @@ def compute_forward(
     subject="fsaverage",
     subjects_dir=None,
     spacing="ico4",
-    conductivity=(0.3,),
+    conductivity=(0.3, 0.006, 0.3),
 ):
     """计算前向解。
 
@@ -129,8 +138,11 @@ def compute_inverse(evoked, fwd, noise_cov, loose=0.2, depth=0.8):
     inv : mne.minimum_norm.InverseOperator
     """
     inv = mne.minimum_norm.make_inverse_operator(
-        evoked.info, fwd, noise_cov,
-        loose=loose, depth=depth,
+        info=evoked.info, 
+        forward=fwd, 
+        noise_cov=noise_cov,
+        loose=loose, 
+        depth=depth,
     )
     print("逆算子计算完成")
     return inv
@@ -154,9 +166,16 @@ def apply_source_recon(evoked, inv, snr=3.0, method="sLORETA"):
     """
     lambda2 = 1.0 / snr ** 2
     stc = mne.minimum_norm.apply_inverse(
-        evoked, inv, lambda2=lambda2, method=method,
+        evoked=evoked, 
+        inverse_operator=inv, 
+        lambda2=lambda2, 
+        method=method,
     )
-    print(f"{method} STC: {stc.data.shape} ({stc.tmin:.2f} ~ {stc.tmax:.2f} s)")
+    
+    # 打印源时间过程（STC）的详细信息
+    # stc.data.shape: 源空间顶点数 × 时间点数，表示每个源在每个时间点的活动强度
+    # stc.times[0] 和 stc.times[-1]: 时间窗口的起始和结束时间（秒）
+    print(f"{method} STC: {stc.data.shape} ({stc.times[0]:.2f} ~ {stc.times[-1]:.2f} s)")
     return stc
 
 
@@ -209,23 +228,30 @@ if __name__ == "__main__":
     print("US-009 演示：Source Localization（需要 fsaverage）")
     print("=" * 60)
 
-    # 准备
+    # 准备 fsaverage 模板
     subjects_dir, subject = prepare_fsaverage()
 
     # 加载数据
+    data_dir = os.path.abspath("./mne-eeg-learning/datasets")
+    mne.set_config("MNE_DATA", data_dir)
     sample_dir = mne.datasets.sample.data_path()
     raw_fname = op.join(sample_dir, "MEG", "sample", "sample_audvis_raw.fif")
     raw = mne.io.read_raw_fif(raw_fname, preload=True).pick_types(
         eeg=True, stim=True
     )
+    raw.set_eeg_reference(projection=True) # 重参考，应用投影器
     raw.filter(l_freq=1.0, h_freq=40.0)
-
+   
+    # 从刺激通道中提取事件标记
     events = mne.find_events(raw, stim_channel="STI 014")
+    # 定义感兴趣的事件类型：左耳听觉刺激
     event_id = {"auditory/left": 1}
+    # 创建 Epochs：分段、基线校正、预加载、拒绝坏段
     epochs = mne.Epochs(
         raw, events, event_id, tmin=-0.2, tmax=0.5,
         baseline=(None, 0), preload=True, reject=dict(eeg=150e-6),
     )
+     # 平均左耳听觉刺激的ERP
     evoked = epochs["auditory/left"].average()
 
     print(f"\n数据就绪: {evoked}")
@@ -237,7 +263,7 @@ if __name__ == "__main__":
 
     # 前向解
     fwd = compute_forward(
-        evoked.info,
+        info=evoked.info,
         subject=subject,
         subjects_dir=subjects_dir,
     )
@@ -246,8 +272,11 @@ if __name__ == "__main__":
     inv = compute_inverse(evoked, fwd, noise_cov)
 
     # 源重建
+    # stc: Source Time Course 源时间过程
     stc = apply_source_recon(evoked, inv, method="sLORETA")
 
     print(f"\n源重建完成！")
     # 可视化源活动
     plot_source_activity(stc, subject, subjects_dir)
+    print("\n按 Enter 关闭窗口...")
+    input()
